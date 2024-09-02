@@ -1,3 +1,4 @@
+#El siguiente archivo es una prueba fallida por el momento, de escanear el qr y registrarlo en Excel
 import cv2
 from pyzbar.pyzbar import decode
 import tkinter as tk
