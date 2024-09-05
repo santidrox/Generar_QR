@@ -1,73 +1,121 @@
-#El siguiente archivo es una prueba fallida por el momento, de escanear el qr y registrarlo en Excel
-import cv2
-from pyzbar.pyzbar import decode
-import tkinter as tk
-from tkinter import messagebox
+from flask import Flask, render_template, request, jsonify, send_from_directory
+import os
+import csv
+import re
+import pandas as pd
+import datetime
 
-# Función para mostrar el mensaje emergente
-def show_message(name):
-    root = tk.Tk()
-    root.withdraw()  # Oculta la ventana principal
-    messagebox.showinfo("Asistencia Registrada", f"Su asistencia ha sido registrada para: {name}")
-    root.destroy()
+app = Flask(__name__)
 
-# Inicializar la videocaptura
-cap = cv2.VideoCapture(0)
+IMAGE_FOLDER = 'img'
+AUDIO_FOLDER = 'audio'
+os.makedirs(AUDIO_FOLDER, exist_ok=True)
 
-if not cap.isOpened():
-    print("No se pudo abrir la cámara.")
-    exit()
+app.config['UPLOAD_FOLDER'] = IMAGE_FOLDER
+app.config['AUDIO_FOLDER'] = AUDIO_FOLDER
+EXCEL_FILE = 'asistencia.xlsx'  # Archivo Excel para registrar asistencia
 
-# Variable para controlar la asistencia ya registrada
-assistance_registered = False
 
-while True:
-    # Leemos los frames
-    ret, frame = cap.read()
-    if not ret:
-        print("No se pudo capturar el frame.")
-        break
+# Función para cargar los estudiantes desde un archivo CSV
+def cargar_estudiantes():
+    estudiantes = {}
+    with open('Listado Cuarto Bachillerato.csv', mode='r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            carnet = str(int(float(row['carnet']))).strip()  # Ajustar formato del carnet
+            estudiantes[carnet] = {
+                'nombre': row['nombre'].strip(),
+                'apellido': row['apellido'].strip(),
+                'carrera': row['carrera'].strip(),
+                'imagen': f"{carnet}.jpg",  # Asume que la imagen se nombra según el carnet
+                'audio': f"{carnet}.mp3"    # Asume que el audio se nombra según el carnet
+            }
+    return estudiantes
 
-    # Leemos los códigos QR
-    decoded_objects = decode(frame)
+# Cargar los estudiantes al inicio
+estudiantes = cargar_estudiantes()
+
+# Función para registrar la asistencia en el archivo Excel
+def registrar_asistencia(carnet, nombre, apellido, carrera):
+    # Obtener la hora actual
+    hora_entrada = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
-    # Verificamos si se ha detectado algún QR
-    if decoded_objects:
-        for codes in decoded_objects:
-            # Extraemos y decodificamos la información
-            info = codes.data.decode('utf-8')
-            print("Código QR detectado:", info)
+    # Crear un diccionario con la información a registrar
+    registro = {
+        'Carnet': carnet,
+        'Nombre': nombre,
+        'Apellido': apellido,
+        'Carrera': carrera,
+        'Hora de Entrada': hora_entrada
+    }
+    
+    # Verificar si el archivo Excel ya existe
+    if not os.path.exists(EXCEL_FILE):
+        # Si no existe, crear un DataFrame nuevo con las columnas correspondientes
+        df = pd.DataFrame(columns=['Carnet', 'Nombre', 'Apellido', 'Carrera', 'Hora de Entrada'])
+    else:
+        # Leer el archivo Excel existente
+        df = pd.read_excel(EXCEL_FILE)
+    
+    # Agregar el nuevo registro al DataFrame
+    df = df.append(registro, ignore_index=True)
+    
+    # Guardar el DataFrame en el archivo Excel
+    df.to_excel(EXCEL_FILE, index=False)
 
-            # Suponiendo que la información está separada por comas: "Nombre,Carrera,Código"
-            datos = info.split(',')
-            if len(datos) == 3:
-                nombre = datos[0]
-                carrera = datos[1]
-                codigo_personal = datos[2]
 
-                # Mostrar mensaje de confirmación en ventana emergente
-                if not assistance_registered:
-                    show_message(nombre)
-                    assistance_registered = True  # Evita mostrar el mensaje más de una vez
+# Ruta principal para la página de inicio
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-                # Dibujar un rectángulo alrededor del QR
-                pts = codes.polygon
-                if len(pts) > 4:
-                    hull = cv2.convexHull(np.array([pt for pt in pts], dtype=np.float32))
-                    hull = list(map(tuple, np.squeeze(hull)))
-                else:
-                    hull = pts
-                n = len(hull)
-                for j in range(0, n):
-                    cv2.line(frame, hull[j], hull[(j + 1) % n], (0, 255, 0), 3)
+# Ruta para procesar el escaneo del código QR
+@app.route('/scan', methods=['POST'])
+def scan():
+    # Obtener el código QR desde la solicitud
+    codigo_qr = request.json['codigo_qr'].strip()
+    
+    # Extraer el carnet del código QR usando una expresión regular
+    carnet_match = re.search(r'Carnet:\s*(\d+)', codigo_qr)
+    if carnet_match:
+        codigo_qr = carnet_match.group(1)
 
-    # Mostramos el frame con las anotaciones
-    cv2.imshow("LECTOR DE QR", frame)
+    # Buscar al estudiante en el diccionario de estudiantes
+    estudiante = estudiantes.get(codigo_qr, None)
+    
+    if estudiante:
+        # Registrar la asistencia del estudiante
+        registrar_asistencia(
+            carnet=codigo_qr,
+            nombre=estudiante['nombre'],
+            apellido=estudiante['apellido'],
+            carrera=estudiante['carrera']
+        )
 
-    # Leemos el teclado y cerramos si se presiona 'ESC'
-    if cv2.waitKey(5) == 27:
-        break
+        # Construir la respuesta con la información del estudiante
+        audio_url = f"/audio/{estudiante['audio']}"
+        return jsonify({
+            'nombre': estudiante['nombre'],
+            'apellido': estudiante['apellido'],
+            'carrera': estudiante['carrera'],
+            'carnet': codigo_qr,
+            'imagen': f"/images/{estudiante['imagen']}",
+            'audio': audio_url
+        })
+    else:
+        # Si no se encuentra el estudiante, devolver un error
+        return jsonify({'error': 'Estudiante no encontrado'})
 
-# Liberamos la cámara y cerramos las ventanas
-cap.release()
-cv2.destroyAllWindows()
+# Ruta para servir las imágenes de los estudiantes
+@app.route('/images/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+# Ruta para servir los audios de los estudiantes
+@app.route('/audio/<filename>')
+def serve_audio(filename):
+    return send_from_directory(app.config['AUDIO_FOLDER'], filename)
+
+# Ejecutar la aplicación
+if __name__ == '__main__':
+    app.run(debug=True)
