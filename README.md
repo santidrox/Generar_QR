@@ -1,4 +1,4 @@
-# Generar_QR
+# Escanear_QR
 # Proyecto de Lector de Códigos QR para Asistencia
 
 ## Descripción
