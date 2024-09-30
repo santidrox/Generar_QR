@@ -50,6 +50,18 @@
             font-size: 16px;
             padding: 10px;
         }
+
+        #imagen-estudiante {
+            margin-top: 20px;
+            width: 6cm;
+            height: 8cm;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+        }
+
+        #audio-estudiante {
+            display: none; 
+        }
     </style>
 </head>
 
@@ -57,17 +69,23 @@
     <div class="container text-center">
         <div class="row">
             <div class="col-md-12">
-                <h2>El número de registros actual es: {{ contador }}</h2>
+                <h2>Escanea el código QR del estudiante</h2>
             </div>
             <div class="col-md-12">
                 <video id="preview"></video>
             </div>
-            <div class="col-md-12 input-group">
-                <label for="qr_text">ÚLTIMO CÓDIGO QR DE PROVEEDOR</label>
-                <input value="{{ codigo }}" type="text" name="qr_text" id="qr_text" class="form-control" readonly>
-            </div>
+            
             <div class="col-md-12" id="resultado">
-                <!-- Aquí se mostrará la información del estudiante -->
+               
+            </div>
+            <div class="col-md-12">
+                <img id="imagen-estudiante" src="" alt="Imagen del estudiante">
+            </div>
+            <div class="col-md-12">
+                <audio id="audio-estudiante">
+                    <source id="audio-source" src="" type="audio/mpeg">
+                    Tu navegador no soporta la reproducción de audio.
+                </audio>
             </div>
         </div>
 
@@ -83,7 +101,6 @@
                         text: "No se han encontrado cámaras",
                     });
                 }
-
             }).catch(function (e) {
                 console.error(e);
             });
@@ -111,6 +128,15 @@
                             <p><strong>Carrera:</strong> ${data.carrera}</p>
                             <p><strong>Carnet:</strong> ${data.carnet}</p>
                         `;
+                        document.getElementById('imagen-estudiante').src = data.imagen;
+
+                        if (data.audio) {
+                            const audioElement = document.getElementById('audio-estudiante');
+                            const sourceElement = document.getElementById('audio-source');
+                            sourceElement.src = data.audio;
+                            audioElement.load();
+                            audioElement.play();
+                        }
                     }
                 })
                 .catch(error => console.error('Error:', error));
@@ -120,4 +146,6 @@
 </body>
 
 </html>
+
+
 
