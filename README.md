@@ -9,5 +9,5 @@ Este proyecto tiene como objetivo desarrollar un lector de códigos QR que se ut
 
 - **Lectura de Códigos QR**: Utiliza una cámara para capturar y decodificar códigos QR.
 - **Visualización de Datos**: Redirige a una página HTML que muestra el nombre, apellido, carrera, código personal y fotografía del estudiante.
-- **Registro de Asistencia**: Guarda la información de asistencia en un archivo Excel.
-- **Interfaz de Usuario**: Muestra una ventana emergente con un mensaje de confirmación cuando la asistencia se ha registrado.
+- **Registro de Asistencia**: Guarda la información de asistencia en una hoja de Cálculo.
+
